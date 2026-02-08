@@ -5,15 +5,11 @@ import { formatScoreCardDate } from "../utils/dateFormat";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
-const LEFT_PANEL_WIDTH = Math.round(WIDTH / 3); // ~1/3 black panel
+const LEFT_PANEL_WIDTH = Math.round(WIDTH / 3); 
 const RIGHT_PANEL_X = LEFT_PANEL_WIDTH;
 const RIGHT_PANEL_PADDING = 60;
 
-/**
- * Generate score card image matching design:
- * Left panel (black): score in white text, centered.
- * Right panel (white): all details (title, user name, rank, date) in black text.
- */
+
 export async function generateScoreCardImage(params: {
   userName: string;
   rank: number;

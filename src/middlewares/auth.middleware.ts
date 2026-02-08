@@ -7,7 +7,6 @@ export const authMiddleware = (
   next: NextFunction
 ) => {
   const authHeader = req.headers.authorization;
-  // Accept "Bearer <token>" or raw token in Authorization header
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.slice(7).trim()
     : authHeader?.trim();

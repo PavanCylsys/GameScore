@@ -3,6 +3,24 @@ import { poolPromise } from "../config/db";
 import { generateToken } from "../config/jwt";
 import { validateRegisterBody, validateSendOtpBody } from "../utils/validation";
 
+
+function getErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === "object") {
+    const e = err as { message?: string; sqlMessage?: string };
+    return String(e.sqlMessage ?? e.message ?? fallback);
+  }
+  return fallback;
+}
+
+
+function isSpSignalError(err: unknown): boolean {
+  if (err && typeof err === "object") {
+    const e = err as { code?: string; sqlState?: string };
+    return e.code === "ER_SIGNAL_EXIT_STATE" || e.sqlState === "45000";
+  }
+  return false;
+}
+
 export const authController = {
   async sendOtp(req: Request, res: Response) {
     const validation = validateSendOtpBody(req.body);
@@ -15,8 +33,9 @@ export const authController = {
       await pool.execute("CALL sp_send_otp(?)", [phone]);
       return res.json({ success: true, message: "OTP sent" });
     } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "message" in err ? String((err as { message: string }).message) : "Failed to send OTP";
-      return res.status(500).json({ success: false, message: msg });
+      const msg = getErrorMessage(err, "Failed to send OTP");
+      const isClientError = isSpSignalError(err);
+      return res.status(isClientError ? 400 : 500).json({ success: false, message: msg });
     }
   },
 
@@ -29,13 +48,15 @@ export const authController = {
     const phoneTrim = String(phone).trim().slice(0, 10);
     const nameStr = String(name).trim();
     const dobStr = String(dob).trim();
+    const dobForDb = new Date(dobStr).toISOString().slice(0, 10); // YYYY-MM-DD for sp_register_user DATE param
     const emailStr = String(email).trim();
     const otpStr = String(otp).trim();
 
     try {
       const pool = await poolPromise;
+      // sp_validate_otp: SIGNALs on error; on success returns one row (id, phone, created_at) – no OTP in response
       const [otpRows] = await pool.execute("CALL sp_validate_otp(?, ?)", [phoneTrim, otpStr]);
-      const otpResult = (Array.isArray(otpRows) ? otpRows : []) as unknown[];
+      const otpResult = (Array.isArray(otpRows) ? otpRows : []) as { id?: number }[];
       if (otpResult.length === 0) {
         return res.status(400).json({
           success: false,
@@ -43,14 +64,18 @@ export const authController = {
         });
       }
 
+    
       const [regRows] = await pool.execute("CALL sp_register_user(?, ?, ?, ?)", [
         phoneTrim,
         nameStr,
-        dobStr,
+        dobForDb,
         emailStr,
       ]);
-      const regResult = (Array.isArray(regRows) ? regRows : []) as { user_id?: number }[];
-      const firstRow = regResult[0];
+      // mysql2 CALL returns array of result sets; first set is array of rows
+      const regResult = (Array.isArray(regRows) ? regRows : []) as { user_id?: number }[][];
+      const resultSet = regResult[0];
+      const firstRow = Array.isArray(resultSet) ? resultSet[0] : resultSet;
+      console.log(firstRow);
       const userId = firstRow?.user_id;
       if (userId == null) {
         return res.status(400).json({
@@ -61,11 +86,9 @@ export const authController = {
       const token = generateToken(userId);
       return res.json({ success: true, token });
     } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "message" in err ? String((err as { message: string }).message) : "Registration failed";
-      if (/phone number already exists|45000/i.test(msg)) {
-        return res.status(400).json({ success: false, message: "Phone number already registered" });
-      }
-      return res.status(500).json({ success: false, message: msg });
+      const msg = getErrorMessage(err, "Registration failed");
+      const isClientError = isSpSignalError(err) || /phone number already exists|Invalid OTP|OTP expired|No OTP found|required/i.test(msg);
+      return res.status(isClientError ? 400 : 500).json({ success: false, message: msg });
     }
   },
 };
