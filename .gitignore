@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment (secrets - do not commit)
+.env
+
+# Build output
+dist/
+build/
+*.js.map
+
+# Logs and temp
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated / uploaded files (optional: ignore public images if you prefer)
+# public/*.jpg
