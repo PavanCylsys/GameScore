@@ -37,7 +37,8 @@ ScoreCard/
 │   ├── sp_validate_otp.sql      # Stored procedure: validate OTP
 │   ├── sp_register_user.sql     # Stored procedure: register user
 │   ├── sp_save_score.sql        # Stored procedure: save score
-│   └── sp_get_user_rank.sql     # Stored procedure: get user rank
+│   ├── sp_get_user_rank.sql     # Stored procedure: get user rank
+│   └── sp_get_weekly_scores.sql # Stored procedure: get week-wise scores (Fri–Thu)
 ├── public/                       # Static files (generated score card images)
 ├── src/
 │   ├── app.ts                    # Express app, routes, middleware
@@ -52,11 +53,11 @@ ScoreCard/
 │   │   └── auth.middleware.ts    # JWT verification for /score
 │   ├── routes/
 │   │   ├── auth.routes.ts        # POST /auth/send-otp, /auth/register
-│   │   └── score.routes.ts       # POST /score, GET /score/card (protected)
+│   │   └── score.routes.ts       # POST /score, GET /score/card, GET /score/weekly (protected)
 │   ├── services/
 │   │   ├── image.service.ts      # Generate score card image
 │   │   ├── otp.service.ts
-│   │   ├── score.service.ts      # Calls sp_save_score, sp_get_user_rank
+│   │   ├── score.service.ts      # Calls sp_save_score, sp_get_user_rank, sp_get_weekly_scores
 │   │   └── user.service.ts
 │   ├── types/
 │   │   └── index.ts
@@ -98,6 +99,7 @@ Each procedure has its own file under `sql/`. Run `tables.sql` first, then run a
 | `sql/sp_register_user.sql` | `sp_register_user(p_phone, p_name, p_dob, p_email)` | If phone exists, raises error; else inserts into `users` and returns `LAST_INSERT_ID()` as `user_id`. |
 | `sql/sp_save_score.sql` | `sp_save_score(p_user_id, p_score)` | Validates score 50–500; enforces max 3 scores per user per day; inserts into `scores` and adds `p_score` to `users.total_score`. |
 | `sql/sp_get_user_rank.sql` | `sp_get_user_rank(p_user_id)` | Gets user’s `total_score`, then returns rank = 1 + count of users with higher `total_score`. |
+| `sql/sp_get_weekly_scores.sql` | `sp_get_weekly_scores(p_user_id)` | Returns week-wise scores for the user. Week = Friday to Thursday; Week 1 = 6–12 Feb. Output: `weekNo`, `rank`, `totalScore` per week. |
 
 ---
 
@@ -176,6 +178,36 @@ Each procedure has its own file under `sql/`. Run `tables.sql` first, then run a
 
 ---
 
+### 5. Get Weekly Scores
+
+**Purpose:** Return week-wise scores and rank for the logged-in user. Input is the user identity from the JWT (encrypted user id). Week runs Friday to Thursday; Week 1 = 6th–12th Feb.
+
+| Method | Path | Auth | Body |
+|--------|------|------|------|
+| GET    | `/score/weekly` | Yes (Bearer token) | — |
+
+- **Success (200):**
+  ```json
+  {
+    "success": true,
+    "weeks": [
+      { "weekNo": 1, "rank": 1, "totalScore": 1500 },
+      { "weekNo": 2, "rank": 3, "totalScore": 120 }
+    ]
+  }
+  ```
+- **Error (401):** Missing/invalid token.
+- **Error (500):** `{ "success": false, "message": "..." }` on server/DB error.
+- **Backend:** Calls `sp_get_weekly_scores(userId)`; user id comes from JWT `uid`.
+
+**Example:**
+
+```bash
+curl -X GET "http://localhost:3000/score/weekly" -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
 ## Setup & Run
 
 ### 1. Environment
@@ -197,7 +229,7 @@ DB_NAME=scorecard
 2. Run table script:  
    `mysql -u root -p scorecard < sql/tables.sql`
 3. Create stored procedures (order does not matter):  
-   Run each of `sql/sp_send_otp.sql`, `sql/sp_validate_otp.sql`, `sql/sp_register_user.sql`, `sql/sp_save_score.sql`, `sql/sp_get_user_rank.sql` in your MySQL client (e.g. `source sql/sp_send_otp.sql`).
+   Run each of `sql/sp_send_otp.sql`, `sql/sp_validate_otp.sql`, `sql/sp_register_user.sql`, `sql/sp_save_score.sql`, `sql/sp_get_user_rank.sql`, `sql/sp_get_weekly_scores.sql` in your MySQL client (e.g. `source sql/sp_send_otp.sql`).
 
 ### 3. App
 
@@ -220,5 +252,5 @@ Server runs at `http://localhost:3000` (or your `PORT`).
 | Table definitions | `sql/tables.sql` |
 | Stored procedure scripts | `sql/sp_*.sql` (one file per procedure) |
 | Auth API (send OTP, register) | `POST /auth/send-otp`, `POST /auth/register` |
-| Score API (save, get card) | `POST /score`, `GET /score/card` (JWT required) |
+| Score API (save, card, weekly) | `POST /score`, `GET /score/card`, `GET /score/weekly` (JWT required) |
 | Generated score card images | `/public/` (URLs returned in `imageUrl`) |
