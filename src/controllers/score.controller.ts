@@ -59,4 +59,21 @@ export const scoreController = {
       return res.status(500).json({ success: false, message: msg });
     }
   },
+
+  async getWeeklyScores(req: Request, res: Response) {
+    const userId = getUserId(req);
+    if (userId == null) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    try {
+      const weeks = await scoreService.getWeeklyScores(userId);
+      return res.json({ success: true, weeks });
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: string }).message)
+          : "Failed to get weekly scores";
+      return res.status(500).json({ success: false, message: msg });
+    }
+  },
 };

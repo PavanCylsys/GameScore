@@ -8,3 +8,4 @@ scoreRoutes.use(authMiddleware);
 
 scoreRoutes.post('/', scoreController.saveScore);
 scoreRoutes.get('/card', scoreController.getScoreCard);
+scoreRoutes.get('/weekly', scoreController.getWeeklyScores);

@@ -32,4 +32,16 @@ export const scoreService = {
       return { rank: 1, totalScore: 0, userName: "User" };
     }
   },
+
+  async getWeeklyScores(userId: number): Promise<{ weekNo: number; rank: number; totalScore: number }[]> {
+    const pool = await poolPromise;
+    const [rows] = await pool.execute("CALL sp_get_weekly_scores(?)", [userId]);
+    const resultSet = (Array.isArray(rows) ? rows : []) as { weekNo?: number; rank?: number; totalScore?: number }[][];
+    const weeks = Array.isArray(resultSet[0]) ? resultSet[0] : [];
+    return weeks.map((row) => ({
+      weekNo: Number(row.weekNo ?? 0),
+      rank: Number(row.rank ?? 1),
+      totalScore: Number(row.totalScore ?? 0),
+    }));
+  },
 };
