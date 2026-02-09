@@ -60,6 +60,7 @@ export const scoreController = {
     }
   },
 
+  /** Weekly Score: week-wise scores for logged-in user. Input: encrypted user id (JWT). Output: { success, weeks: [{ weekNo, rank, totalScore }] }. Week = Fri–Thu; Week 1 = 6–12 Feb. */
   async getWeeklyScores(req: Request, res: Response) {
     const userId = getUserId(req);
     if (userId == null) {

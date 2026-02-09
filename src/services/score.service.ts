@@ -40,16 +40,15 @@ export const scoreService = {
     }
   },
 
-  async getWeeklyScores(userId: number): Promise<{ weekNo: number; rank: number | null; totalScore: number }[]> {
+  async getWeeklyScores(userId: number): Promise<{ weekNo: number; rank: number; totalScore: number }[]> {
     const pool = await poolPromise;
     const [rows] = await pool.execute("CALL sp_get_weekly_scores(?)", [userId]);
     const resultSet = (Array.isArray(rows) ? rows : []) as { weekNo?: number; rank?: number | null; totalScore?: number }[][];
     const weeks = Array.isArray(resultSet[0]) ? resultSet[0] : [];
     return weeks.map((row) => {
       const totalScore = Number(row.totalScore ?? 0);
-      // Only show rank when user has actually played (totalScore > 0); never show rank 1 for zero score
-      const rank =
-        totalScore > 0 && row.rank != null ? Number(row.rank) : null;
+      // Rank 0 when user has not played; otherwise use DB rank (SP returns 0 for zero score)
+      const rank = totalScore > 0 ? Number(row.rank ?? 0) : 0;
       return {
         weekNo: Number(row.weekNo ?? 0),
         rank,
