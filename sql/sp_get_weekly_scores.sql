@@ -7,8 +7,6 @@
 DELIMITER //
 CREATE PROCEDURE sp_get_weekly_scores(IN p_user_id INT)
 BEGIN
-  -- Current week number (week containing today, Friday-based)
-  -- week_friday for a date: date - (DAYOFWEEK(date)+1)%7 days. Fri=6 -> 0, Sat=7 -> 1, Thu=5 -> 6.
   WITH RECURSIVE
   week_nums(week_no) AS (
     SELECT 1
@@ -22,7 +20,6 @@ BEGIN
       ) / 7) + 1)
     ))
   ),
-  -- Each score row assigned to a week (Fri-Thu). Week 1 start = 2025-02-06.
   score_weeks AS (
     SELECT
       user_id,
@@ -39,7 +36,6 @@ BEGIN
     FROM score_weeks
     GROUP BY user_id, week_no
   ),
-  -- For each week in week_nums, get this user's total (0 if none) and rank among all users that week
   user_weekly AS (
     SELECT
       wn.week_no,
@@ -47,14 +43,16 @@ BEGIN
     FROM week_nums wn
     LEFT JOIN user_week_totals uw ON uw.week_no = wn.week_no AND uw.user_id = p_user_id
   ),
-  -- Rank = 1 + count of users (for that week) who have strictly higher total than this user
   ranked AS (
     SELECT
       uw.week_no AS weekNo,
       COALESCE(uw.total_score, 0) AS totalScore,
-      1 + (SELECT COUNT(DISTINCT r.user_id)
-           FROM user_week_totals r
-           WHERE r.week_no = uw.week_no AND r.total_score > uw.total_score) AS rnk
+      CASE
+        WHEN COALESCE(uw.total_score, 0) = 0 THEN NULL
+        ELSE 1 + (SELECT COUNT(DISTINCT r.user_id)
+                  FROM user_week_totals r
+                  WHERE r.week_no = uw.week_no AND r.total_score > uw.total_score)
+      END AS rnk
     FROM user_weekly uw
   )
   SELECT weekNo AS weekNo, rnk AS `rank`, totalScore AS totalScore

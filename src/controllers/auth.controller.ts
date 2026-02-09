@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { poolPromise } from "../config/db";
 import { generateToken } from "../config/jwt";
-import { validateRegisterBody, validateSendOtpBody } from "../utils/validation";
+import { normalizeDobToIso, validateRegisterBody, validateSendOtpBody } from "../utils/validation";
 
 
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -48,7 +48,7 @@ export const authController = {
     const phoneTrim = String(phone).trim().slice(0, 10);
     const nameStr = String(name).trim();
     const dobStr = String(dob).trim();
-    const dobForDb = new Date(dobStr).toISOString().slice(0, 10); // YYYY-MM-DD for sp_register_user DATE param
+    const dobForDb = normalizeDobToIso(dobStr); // YYYY-MM-DD for sp_register_user DATE param
     const emailStr = String(email).trim();
     const otpStr = String(otp).trim();
 
@@ -71,7 +71,7 @@ export const authController = {
         dobForDb,
         emailStr,
       ]);
-      // mysql2 CALL returns array of result sets; first set is array of rows
+
       const regResult = (Array.isArray(regRows) ? regRows : []) as { user_id?: number }[][];
       const resultSet = regResult[0];
       const firstRow = Array.isArray(resultSet) ? resultSet[0] : resultSet;
