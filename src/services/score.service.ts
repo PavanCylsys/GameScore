@@ -22,9 +22,14 @@ export const scoreService = {
       const totalScore = user?.total_score ?? 0;
       const userName = user?.name ?? "User";
 
-      // Rank = 1 + count of users with strictly higher total_score (same score = same rank)
+      // Weekly score rule: if not played (totalScore 0), rank is 0
+      if (totalScore === 0) {
+        return { rank: 0, totalScore: 0, userName };
+      }
+
+      // Rank = 1 + count of distinct total_scores strictly higher (same score = same rank; matches sp_get_user_rank)
       const [rankRows] = await pool.execute(
-        "SELECT 1 + COUNT(*) AS user_rank FROM users WHERE COALESCE(total_score, 0) > ?",
+        "SELECT 1 + COUNT(DISTINCT COALESCE(total_score, 0)) AS user_rank FROM users WHERE COALESCE(total_score, 0) > ?",
         [totalScore]
       );
       const rankList = (Array.isArray(rankRows) ? rankRows : [rankRows]) as { user_rank?: number }[];
@@ -36,7 +41,7 @@ export const scoreService = {
         userName,
       };
     } catch {
-      return { rank: 1, totalScore: 0, userName: "User" };
+      return { rank: 0, totalScore: 0, userName: "User" };
     }
   },
 
